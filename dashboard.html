@@ -1,13 +1,264 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
- <link rel="stylesheet" href="dashboard.css"> 
-  <title>Dashboard</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dad Tracker — Dashboard</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #060d1a;
+      --surface: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+      --green: #4ade80;
+      --text: #e2e8f0;
+      --muted: #64748b;
+    }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 56px 1fr;
+      grid-template-columns: 300px 1fr;
+    }
+
+    /* TOPBAR */
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 20px;
+      background: rgba(6,13,26,0.97);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+    }
+
+    .topbar-logo {
+      font-size: 17px;
+      font-weight: 800;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .topbar-sep { flex: 1; }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--green);
+      background: rgba(74,222,128,0.08);
+      border: 1px solid rgba(74,222,128,0.2);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+
+    .live-dot {
+      width: 7px; height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 1.4s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:0.3; transform:scale(0.6); }
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      background: rgba(255,255,255,0.02);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 999;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .card-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .avatar-row { display: flex; align-items: center; gap: 12px; }
+
+    .avatar {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+
+    .avatar-info h3 { font-size: 15px; font-weight: 700; }
+    .status-text { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .status-text.online { color: var(--green); }
+
+    .coord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .coord-item {
+      background: rgba(0,0,0,0.3);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .ci-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+
+    .ci-val {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px; color: var(--accent);
+      margin-top: 4px; word-break: break-all;
+    }
+
+    .time-row {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; color: var(--muted); margin-top: 10px;
+    }
+    .time-row span { color: var(--text); }
+
+    .btn-center {
+      width: 100%; padding: 11px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 10px;
+      color: #000; font-family: 'Syne', sans-serif;
+      font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn-center:hover { opacity: 0.8; }
+
+    .history-list {
+      display: flex; flex-direction: column;
+      gap: 7px; max-height: 200px; overflow-y: auto;
+    }
+
+    .history-item {
+      display: flex; align-items: flex-start;
+      gap: 8px; padding: 8px 10px;
+      background: rgba(0,0,0,0.2); border-radius: 8px;
+    }
+
+    .hi-dot {
+      width: 7px; height: 7px;
+      background: var(--accent2); border-radius: 50%;
+      margin-top: 4px; flex-shrink: 0;
+    }
+
+    .hi-coords { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); line-height: 1.5; }
+    .hi-time { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    /* MAP */
+    #map { width: 100%; height: 100%; z-index: 1; }
+    .leaflet-tile { filter: brightness(0.5) saturate(0.4) hue-rotate(190deg); }
+
+    .dad-marker {
+      width: 20px; height: 20px;
+      background: #38bdf8;
+      border: 3px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 14px rgba(56,189,248,0.9);
+    }
+
+    /* Offline overlay */
+    #offline {
+      display: none; position: absolute; inset: 0;
+      background: rgba(6,13,26,0.88); backdrop-filter: blur(8px);
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 10px; z-index: 998;
+    }
+    #offline.show { display: flex; }
+    #offline .oi { font-size: 44px; }
+    #offline h2 { font-size: 18px; }
+    #offline p { color: var(--muted); font-size: 13px; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
 </head>
 <body>
 
-<h2>👨 Dad Location</h2>
-<pre id="data"></pre>
+  <header class="topbar">
+    <div class="topbar-logo">📡 DadTracker</div>
+    <div class="topbar-sep"></div>
+    <div class="live-badge" id="live-badge">
+      <div class="live-dot"></div>
+      <span id="badge-text">CONNECTING</span>
+    </div>
+  </header>
+
+  <aside class="sidebar">
+    <div class="card">
+      <div class="card-label">Tracking</div>
+      <div class="avatar-row">
+        <div class="avatar">👨</div>
+        <div class="avatar-info">
+          <h3>Dad</h3>
+          <div class="status-text" id="status-text">Waiting for signal...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Live Coordinates</div>
+      <div class="coord-grid">
+        <div class="coord-item">
+          <div class="ci-label">Latitude</div>
+          <div class="ci-val" id="lat-val">—</div>
+        </div>
+        <div class="coord-item">
+          <div class="ci-label">Longitude</div>
+          <div class="ci-val" id="lng-val">—</div>
+        </div>
+      </div>
+      <div class="time-row">Last update: <span id="time-val">—</span></div>
+    </div>
+
+    <button class="btn-center" onclick="centerMap()">🎯 Center on Dad</button>
+
+    <div class="card">
+      <div class="card-label">Recent Positions</div>
+      <div class="history-list" id="history-list">
+        <div style="color:var(--muted);font-size:12px">No data yet...</div>
+      </div>
+    </div>
+  </aside>
+
+  <div style="position:relative;">
+    <div id="map"></div>
+    <div id="offline">
+      <div class="oi">📡</div>
+      <h2>No signal yet</h2>
+      <p>Make sure dad.html is open on his device.</p>
+    </div>
+  </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
@@ -19,16 +270,91 @@ const firebaseConfig = {
   projectId: "tracker-d34a3",
   storageBucket: "tracker-d34a3.firebasestorage.app",
   messagingSenderId: "964015249184",
-  appId: "1:964015249184:web:2128007d10934bc5b56945"
+  appId: "1:964015249184:web:2128007d10934bc5b56945",
+  databaseURL: "https://tracker-d34a3-default-rtdb.firebaseio.com"
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const db  = getDatabase(app);
 
-onValue(ref(db, "dad"), (snap) => {
-  document.getElementById("data").innerText =
-    JSON.stringify(snap.val(), null, 2);
+// ── Leaflet map ───────────────────────────────────────────
+const map = L.map('map').setView([22.5726, 88.3639], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+const dadIcon = L.divIcon({
+  className: '',
+  html: '<div class="dad-marker"></div>',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10]
 });
+
+let marker   = null;
+let polyline = L.polyline([], { color: '#38bdf8', weight: 3, opacity: 0.65 }).addTo(map);
+let positions = [];
+
+// ── Firebase ──────────────────────────────────────────────
+onValue(ref(db, "dad"), (snap) => {
+  const data = snap.val();
+
+  if (!data) {
+    document.getElementById('offline').classList.add('show');
+    return;
+  }
+
+  document.getElementById('offline').classList.remove('show');
+
+  const { lat, lng, time } = data;
+
+  // Update sidebar
+  document.getElementById('lat-val').textContent  = lat.toFixed(6);
+  document.getElementById('lng-val').textContent  = lng.toFixed(6);
+  document.getElementById('time-val').textContent = new Date(time).toLocaleTimeString();
+  document.getElementById('status-text').textContent = '● Online';
+  document.getElementById('status-text').classList.add('online');
+  document.getElementById('badge-text').textContent = 'LIVE';
+
+  // Move / create marker
+  if (marker) {
+    marker.setLatLng([lat, lng]);
+  } else {
+    marker = L.marker([lat, lng], { icon: dadIcon })
+      .addTo(map)
+      .bindPopup('<b>👨 Dad</b><br>Live location')
+      .openPopup();
+    map.setView([lat, lng], 15);
+  }
+
+  // Trail
+  positions.push([lat, lng]);
+  if (positions.length > 50) positions.shift();
+  polyline.setLatLngs(positions);
+
+  // History
+  addHistory(lat, lng, time);
+});
+
+window.centerMap = function () {
+  if (marker) map.setView(marker.getLatLng(), 16);
+};
+
+function addHistory(lat, lng, time) {
+  const list = document.getElementById('history-list');
+  if (list.querySelector('div[style]')) list.innerHTML = '';
+
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  item.innerHTML = `
+    <div class="hi-dot"></div>
+    <div>
+      <div class="hi-coords">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+      <div class="hi-time">${new Date(time).toLocaleTimeString()}</div>
+    </div>`;
+  list.insertBefore(item, list.firstChild);
+  while (list.children.length > 8) list.removeChild(list.lastChild);
+}
 </script>
 
 </body>
